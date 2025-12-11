@@ -31,11 +31,13 @@
     text-wrap:wrap;
     text-align: left;
     text-size-adjust: 12;
-    font-weight: bolder;
+    font-weight: normal;
     margin-top: 5px;
-    font-size: medium;
+    font-size: 13px;
     border: 10px;
     border-radius: 13px;
+    padding: 8px;
+    line-height: 1.4;
 }
 .humanMessage-box {
     margin-left: 40px;
@@ -46,11 +48,13 @@
     text-wrap:wrap;
     text-align: left;
     text-size-adjust: 12;
-    font-weight: bolder;
-    font-size: medium;
+    font-weight: normal;
+    font-size: 13px;
     margin-top: 5px;
     border: 10px;
-    border-radius: 13px;    
+    border-radius: 13px;
+    padding: 8px;
+    line-height: 1.4;
 }
 
 .llmMessage-box {

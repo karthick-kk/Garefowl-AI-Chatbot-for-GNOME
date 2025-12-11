@@ -1,11 +1,9 @@
 /**
- * Penguin AI Chatbot for GNOME
+ * Garefowl AI Chatbot for GNOME
  *
  * A GNOME Shell extension that integrates AI chatbot capabilities
  * with support for multiple LLM providers.
  *
- * Based on work by contributors to:
- * https://github.com/martijara/Penguin-AI-Chatbot-for-GNOME
  */
 
 /// <reference path="./global.d.ts" />
@@ -22,25 +20,26 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { SettingsManager } from "./lib/settings.js";
 import { LLMProviderFactory } from "./lib/llmProviders.js";
 import { ChatMessageDisplay } from "./lib/chatUI.js";
-import { setupShortcut, removeShortcut, formatString, focusInput } from "./lib/utils.js";
+import { setupShortcut, removeShortcut, focusInput } from "./lib/utils.js";
 import { MessageRoles, CSS, UI } from "./lib/constants.js";
 import {hideTooltip, showTooltip } from "./lib/tooltip.js";
 
 /**
  * Main extension class that handles the chat interface
  */
-const Penguin = GObject.registerClass(
-    class Penguin extends PanelMenu.Button {
+const Garefowl = GObject.registerClass(
+    class Garefowl extends PanelMenu.Button {
         /**
-        * Initialize the Penguin chat interface
+        * Initialize the Garefowl chat interface
         * @param {object} params - Initialization parameters
         */
         _init(extension) {
-            super._init(0.0, _("Penguin: AI Chatbot"));
+            super._init(0.0, _("Garefowl: AI Chatbot"));
 
             this._extension = extension;
             this._settingsManager = new SettingsManager(this._extension.settings);
             this._clipboard = this._extension.clipboard;
+            this._openSettingsCallback = this._extension.openSettings;
 
             // Load settings
             this._loadSettings();
@@ -67,7 +66,7 @@ const Penguin = GObject.registerClass(
         _initializeUI() {
         // Add icon to the top bar
             this.add_child(new St.Icon({
-                icon_name:   "Penguin: AI Chatbot",
+                icon_name:   "Garefowl: AI Chatbot",
                 style_class: "icon",
             }));
 
@@ -101,7 +100,7 @@ const Penguin = GObject.registerClass(
 
             // Create new conversation button
             this._newConversationButton = new St.Button({
-                style: "width: 16px; height:16px; margin-right: 15px; margin-left: 10px'",
+                style: "width: 16px; height:16px; margin-right: 10px; margin-left: 10px'",
                 child: new St.Icon({
                     icon_name: "tab-new-symbolic",
                     style:     "width: 30px; height:30px",
@@ -113,6 +112,24 @@ const Penguin = GObject.registerClass(
             this._newConversationButton.connect("enter-event", () => this._handleNewConversationEnter());
             this._newConversationButton.connect("leave-event", () => this._handleNewConversationLeave());
 
+            // Create preferences button
+            this._preferencesButton = new St.Button({
+                style: "width: 16px; height:16px; margin-right: 15px;",
+                child: new St.Icon({
+                    icon_name: "emblem-system-symbolic",
+                    style:     "width: 30px; height:30px",
+                }),
+            });
+
+            // Set up preferences button event handlers
+            this._preferencesButton.connect("clicked", () => this._openSettings());
+            this._preferencesButton.connect("enter-event", () => {
+                showTooltip('Open Preferences');
+            });
+            this._preferencesButton.connect("leave-event", () => {
+                hideTooltip();
+            });
+
             // Create bottom input area
             const entryBox = new St.BoxLayout({
                 vertical:    false,
@@ -120,6 +137,7 @@ const Penguin = GObject.registerClass(
             });
             entryBox.add_child(this._chatInput);
             entryBox.add_child(this._newConversationButton);
+            entryBox.add_child(this._preferencesButton);
 
             // Create scrollable chat view
             this._chatView = new St.ScrollView({
@@ -128,6 +146,7 @@ const Penguin = GObject.registerClass(
                 reactive:               true,
             });
             this._chatView.set_child(this._chatBox);
+            this._chatDisplay.setScrollView(this._chatView);
 
             // Create main layout
             const layout = new St.BoxLayout({
@@ -148,6 +167,7 @@ const Penguin = GObject.registerClass(
                     this._focusInputBox();
                 }
             });
+
         }
 
         /**
@@ -171,7 +191,7 @@ const Penguin = GObject.registerClass(
             }
 
             const input = this._chatInput.get_text();
-            if (!input || input === UI.THINKING_TEXT) {
+            if (!input || input.startsWith('Thinking ')) {
                 return;
             }
 
@@ -189,7 +209,36 @@ const Penguin = GObject.registerClass(
 
             // Disable input during processing
             this._chatInput.set_reactive(false);
-            this._chatInput.set_text(UI.THINKING_TEXT);
+            this._startThinkingTimer();
+        }
+
+        /**
+        * Start the thinking timer
+        * @private
+        */
+        _startThinkingTimer() {
+            this._thinkingStartTime = Date.now();
+            this._chatInput.set_text('Thinking 0s');
+            
+            this._thinkingTimer = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+                if (this._chatInput) {
+                    const elapsed = Math.floor((Date.now() - this._thinkingStartTime) / 1000);
+                    this._chatInput.set_text(`Thinking ${elapsed}s`);
+                }
+                return GLib.SOURCE_CONTINUE;
+            });
+        }
+
+        /**
+        * Stop the thinking timer
+        * @private
+        */
+        _stopThinkingTimer() {
+            if (this._thinkingTimer) {
+                GLib.Source.remove(this._thinkingTimer);
+                this._thinkingTimer = null;
+            }
+            this._thinkingStartTime = 0;
         }
 
         /**
@@ -197,8 +246,9 @@ const Penguin = GObject.registerClass(
         * @private
         */
         _handleNewConversation() {
-            if (this._chatInput.get_text() === UI.NEW_CONVERSATION_TEXT ||
-            this._chatInput.get_text() !== UI.THINKING_TEXT) {
+            const inputText = this._chatInput.get_text();
+            if (inputText === UI.NEW_CONVERSATION_TEXT ||
+            !inputText.startsWith('Thinking ')) {
             // Clear history
                 this._history = [];
                 this._settingsManager.setHistory([]);
@@ -310,6 +360,10 @@ const Penguin = GObject.registerClass(
             const callback = function(error, response) {
                 console.log("[Extension] Callback entered");
                 log(`[Extension] Callback entered`);
+                
+                // Stop thinking timer
+                this._stopThinkingTimer();
+                
                 if (error) {
                     log(`[Extension] Callback error: ${error}`);
                     chatDisplay.displayError(error.toString(), true);
@@ -329,7 +383,7 @@ const Penguin = GObject.registerClass(
                 chatInput.set_reactive(true);
                 chatInput.set_text("");
                 focusInputBox();
-            };
+            }.bind(this);
             llmProvider.sendRequest(this._history, callback);
             console.log(`[Extension] sendRequest method called, waiting for callback`);
 
@@ -353,7 +407,8 @@ const Penguin = GObject.registerClass(
                         this._settingsManager.setHistory(this._history);
                     }
 
-                    // Re-enable input
+                    // Stop thinking timer and re-enable input
+                    this._stopThinkingTimer();
                     this._chatInput.set_reactive(true);
                     this._chatInput.set_text("");
                     this._focusInputBox();
@@ -415,13 +470,21 @@ const Penguin = GObject.registerClass(
         * @private
         */
         _openSettings() {
-            this._extension.openPreferences();
+            if (this._openSettingsCallback) {
+                try {
+                    this._openSettingsCallback();
+                } catch (e) {
+                    logError(e, '[Garefowl] Error opening settings');
+                }
+            }
         }
 
         /**
         * Clean up resources
         */
         destroy() {
+            this._stopThinkingTimer();
+            
             if (this._timeoutResponse) {
                 GLib.Source.remove(this._timeoutResponse);
                 this._timeoutResponse = null;
@@ -444,20 +507,20 @@ const Penguin = GObject.registerClass(
 /**
  * Extension entry point class
  */
-export default class PenguinExtension extends Extension {
+export default class GarefowlExtension extends Extension {
     enable() {
-        this._penguin = new Penguin({
+        this._garefowl = new Garefowl({
             settings:     this.getSettings(),
-            openSettings: this.openPreferences,
+            openSettings: () => this.openPreferences(),
             clipboard:    St.Clipboard.get_default(),
             uuid:         this.uuid,
         });
 
-        Main.panel.addToStatusArea(this.uuid, this._penguin);
+        Main.panel.addToStatusArea(this.uuid, this._garefowl);
     }
 
     disable() {
-        this._penguin.destroy();
-        this._penguin = null;
+        this._garefowl.destroy();
+        this._garefowl = null;
     }
 }

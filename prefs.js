@@ -1,5 +1,5 @@
 /**
- * Preferences for Penguin AI Chatbot
+ * Preferences for Garefowl AI Chatbot
  *
  * Provides the UI for configuring the extension.
  */
@@ -16,13 +16,18 @@ import { SettingsKeys, LLMProviders } from "./lib/constants.js";
 /**
  * Extension preferences management class
  */
-export default class PenguinPreferences extends ExtensionPreferences {
+export default class GarefowlPreferences extends ExtensionPreferences {
     /**
      * Fill the preferences window with the settings UI
      * @param {Adw.PreferencesWindow} window - The preferences window
      */
     fillPreferencesWindow(window) {
         window._settings = this.getSettings();
+        
+        // Set window size - increased width to accommodate all content
+        window.set_default_size(1000, 700);
+        window.set_search_enabled(false);
+        
         const settingsUI = new SettingsUI(window._settings);
         const page = new Adw.PreferencesPage();
         page.add(settingsUI.ui);
@@ -64,7 +69,7 @@ class SettingsUI {
      * @private
      */
     _createMainGrid() {
-        return new Gtk.Grid({
+        const grid = new Gtk.Grid({
             margin_top:         10,
             margin_bottom:      10,
             margin_start:       10,
@@ -73,7 +78,15 @@ class SettingsUI {
             column_spacing:     14,
             column_homogeneous: false,
             row_homogeneous:    false,
+            hexpand:            true,
+            vexpand:            false,
         });
+        
+        // Set column properties for better layout
+        // Column 0: Labels (left aligned, natural width)
+        grid.set_column_spacing(10);
+        
+        return grid;
     }
 
     /**
@@ -131,6 +144,7 @@ class SettingsUI {
         this.provider = new Gtk.DropDown({
             model:      providerList,
             expression: new Gtk.ConstantExpression(0),
+            hexpand:    true,
         });
 
         // Set the default provider
@@ -172,13 +186,16 @@ class SettingsUI {
         this.anthropicApiKey = new Gtk.Entry({
             buffer:     new Gtk.EntryBuffer(),
             visibility: false, // hide the key
+            hexpand:    true,
+            width_chars: 30,
         });
         this.anthropicApiKey.set_placeholder_text(_("Paste your Anthropic API key"));
         this.anthropicApiKey.set_text(this.defaultAnthropicKey);
 
         const howToAnthropicAPI = new Gtk.LinkButton({
-            label: _("Get Anthropic API Key"),
-            uri:   "https://console.anthropic.com/account/keys",
+            label:   _("Get Anthropic API Key"),
+            uri:     "https://console.anthropic.com/account/keys",
+            halign:  Gtk.Align.START,
         });
 
         // OpenAI API Key
@@ -191,13 +208,16 @@ class SettingsUI {
         this.openaiApiKey = new Gtk.Entry({
             buffer:     new Gtk.EntryBuffer(),
             visibility: false,
+            hexpand:    true,
+            width_chars: 30,
         });
         this.openaiApiKey.set_placeholder_text(_("Paste your OpenAI API key"));
         this.openaiApiKey.set_text(this.defaultOpenAIKey);
 
         const howToOpenAIAPI = new Gtk.LinkButton({
-            label: _("Get OpenAI API Key"),
-            uri:   "https://platform.openai.com/api-keys",
+            label:   _("Get OpenAI API Key"),
+            uri:     "https://platform.openai.com/api-keys",
+            halign:  Gtk.Align.START,
         });
 
         // Gemini API Key
@@ -210,13 +230,16 @@ class SettingsUI {
         this.geminiApiKey = new Gtk.Entry({
             buffer:     new Gtk.EntryBuffer(),
             visibility: false,
+            hexpand:    true,
+            width_chars: 30,
         });
         this.geminiApiKey.set_placeholder_text(_("Paste your Gemini API key"));
         this.geminiApiKey.set_text(this.defaultGeminiKey);
 
         const howToGeminiAPI = new Gtk.LinkButton({
-            label: _("Get Gemini API Key"),
-            uri:   "https://makersuite.google.com/app/apikey",
+            label:   _("Get Gemini API Key"),
+            uri:     "https://makersuite.google.com/app/apikey",
+            halign:  Gtk.Align.START,
         });
 
         // OpenRouter API Key
@@ -229,13 +252,16 @@ class SettingsUI {
         this.openRouterApiKey = new Gtk.Entry({
             buffer:     new Gtk.EntryBuffer(),
             visibility: false,
+            hexpand:    true,
+            width_chars: 30,
         });
         this.openRouterApiKey.set_placeholder_text(_("Paste your OpenRouter API key"));
         this.openRouterApiKey.set_text(this.defaultOpenRouterKey);
 
         const howToOpenRouterAPI = new Gtk.LinkButton({
-            label: _("Get OpenRouter API Key"),
-            uri:   "https://openrouter.ai/settings/keys",
+            label:   _("Get OpenRouter API Key"),
+            uri:     "https://openrouter.ai/settings/keys",
+            halign:  Gtk.Align.START,
         });
 
         // Add to grid
@@ -270,13 +296,16 @@ class SettingsUI {
 
         this.model = new Gtk.Entry({
             buffer: new Gtk.EntryBuffer(),
+            hexpand: true,
+            width_chars: 30,
         });
         this.model.set_placeholder_text(_("e.g., claude-v1.3"));
         this.model.set_text(this.defaultModel);
 
         const howToModel = new Gtk.LinkButton({
-            label: _("Available Anthropic Models"),
-            uri:   "https://docs.anthropic.com/claude/docs/models-overview",
+            label:   _("Available Anthropic Models"),
+            uri:     "https://docs.anthropic.com/claude/docs/models-overview",
+            halign:  Gtk.Align.START,
         });
 
         // OpenAI Model
@@ -288,13 +317,16 @@ class SettingsUI {
 
         this.openaiModel = new Gtk.Entry({
             buffer: new Gtk.EntryBuffer(),
+            hexpand: true,
+            width_chars: 30,
         });
         this.openaiModel.set_placeholder_text(_("e.g., gpt-3.5-turbo"));
         this.openaiModel.set_text(this.defaultOpenAIModel);
 
         const howToOpenAIModel = new Gtk.LinkButton({
-            label: _("Available OpenAI Models"),
-            uri:   "https://platform.openai.com/docs/models",
+            label:   _("Available OpenAI Models"),
+            uri:     "https://platform.openai.com/docs/models",
+            halign:  Gtk.Align.START,
         });
 
         // Gemini Model
@@ -306,13 +338,16 @@ class SettingsUI {
 
         this.geminiModel = new Gtk.Entry({
             buffer: new Gtk.EntryBuffer(),
+            hexpand: true,
+            width_chars: 30,
         });
         this.geminiModel.set_placeholder_text(_("e.g., gemini-1.0-pro"));
         this.geminiModel.set_text(this.defaultGeminiModel);
 
         const howToGeminiModel = new Gtk.LinkButton({
-            label: _("Available Gemini Models"),
-            uri:   "https://ai.google.dev/models/gemini",
+            label:   _("Available Gemini Models"),
+            uri:     "https://ai.google.dev/models/gemini",
+            halign:  Gtk.Align.START,
         });
 
         // OpenRouter Model
@@ -324,13 +359,16 @@ class SettingsUI {
 
         this.openRouterModel = new Gtk.Entry({
             buffer: new Gtk.EntryBuffer(),
+            hexpand: true,
+            width_chars: 30,
         });
         this.openRouterModel.set_placeholder_text(_("e.g., meta-llama/llama-3.3-70b-instruct:free"));
         this.openRouterModel.set_text(this.defaultOpenRouterModel);
 
         const howToOpenRouterModel = new Gtk.LinkButton({
-            label: _("Available OpenRouter Models"),
-            uri:   "https://openrouter.ai/models",
+            label:   _("Available OpenRouter Models"),
+            uri:     "https://openrouter.ai/models",
+            halign:  Gtk.Align.START,
         });
 
         // Ollama Model
@@ -342,13 +380,16 @@ class SettingsUI {
 
         this.ollamaModel = new Gtk.Entry({
             buffer: new Gtk.EntryBuffer(),
+            hexpand: true,
+            width_chars: 30,
         });
         this.ollamaModel.set_placeholder_text(_("e.g., llama2"));
         this.ollamaModel.set_text(this.defaultOllamaModel);
 
         const howToOllamaModel = new Gtk.LinkButton({
-            label: _("Available Ollama Models"),
-            uri:   "https://ollama.com/models",
+            label:   _("Available Ollama Models"),
+            uri:     "https://ollama.com/models",
+            halign:  Gtk.Align.START,
         });
 
         // Add to grid
