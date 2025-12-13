@@ -31,6 +31,11 @@
         <summary>Open Router API Key</summary>
         <description>Your Open Router API key. Required to use Open Router models.</description>
     </key>
+    <key name="enable-web-search" type="b">
+        <default>true</default>
+        <summary>Enable Web Search</summary>
+        <description>Allow the chatbot to search the web for real-time information using DuckDuckGo.</description>
+    </key>
 
 
 

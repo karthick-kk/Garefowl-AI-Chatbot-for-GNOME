@@ -42,6 +42,8 @@ const re_href = "/href='(http[s]?:\\/\\/[^\\s]*)'"
 const re_atag = "<a\s.*>.*(http[s]?:\\/\\/[^\\s]*).*</a>/"
 const re_h1line = /^===+\s*$/
 const re_h2line = /^---+\s*$/
+const re_table_row = /^\s*\|(.+)\|\s*$/
+const re_table_sep = /^\s*\|[\s\-:|]+\|\s*$/
 
 const m2p_escapes = [
     [/<!--.*-->/, ''],
@@ -66,6 +68,10 @@ function convert(text) {
     let is_code = false
     let code_lines = []
 
+    // Table processing
+    let in_table = false
+    let table_lines = []
+
     let output = []
     let color_span_open = false
     let tt_must_close = false
@@ -85,6 +91,21 @@ function convert(text) {
     }
 
     for (const line of lines) {
+        // Handle table rows
+        if (!is_code && (line.match(re_table_row) || line.match(re_table_sep))) {
+            if (!in_table) {
+                in_table = true
+                table_lines = []
+            }
+            table_lines.push(line)
+            continue
+        } else if (in_table) {
+            // End of table, process it
+            output.push(...formatTable(table_lines))
+            in_table = false
+            table_lines = []
+        }
+
         // first parse color macros in non-code texts
         if (!is_code) {
             let colors = line.match(re_color)
@@ -198,12 +219,48 @@ function convert(text) {
         output.push(result)
     }
 
+    // Handle any remaining table
+    if (in_table) {
+        output.push(...formatTable(table_lines))
+    }
+
     try_close_span()
 
     // remove trailing whitespaces
     output = output.map(line => line.replace(/ +$/, ''))
 
     return output.join('\n')
+}
+
+function formatTable(lines) {
+    if (lines.length === 0) return []
+    
+    // Parse table rows
+    const rows = lines.filter(l => !l.match(re_table_sep)).map(l => {
+        return l.split('|').slice(1, -1).map(cell => cell.trim())
+    })
+    
+    if (rows.length === 0) return []
+    
+    // Calculate column widths
+    const colWidths = rows[0].map((_, i) => 
+        Math.max(...rows.map(r => (r[i] || '').length))
+    )
+    
+    // Format as simple text with separators
+    const formatted = []
+    
+    rows.forEach((row, idx) => {
+        const cells = row.map((cell, i) => cell.padEnd(colWidths[i]))
+        formatted.push(cells.join('  |  '))
+        
+        // Add separator after header
+        if (idx === 0) {
+            formatted.push(colWidths.map(w => '-'.repeat(w)).join('--+--'))
+        }
+    })
+    
+    return formatted
 }
 
 const readFile = (f) => {

@@ -25,7 +25,7 @@ export default class GarefowlPreferences extends ExtensionPreferences {
         window._settings = this.getSettings();
         
         // Set window size - increased width to accommodate all content
-        window.set_default_size(1000, 700);
+        window.set_default_size(1000, 950);
         window.set_search_enabled(false);
         
         const settingsUI = new SettingsUI(window._settings);
@@ -56,8 +56,9 @@ class SettingsUI {
         this._createAPIKeySection();
         this._createModelSection();
         this._createTimeoutSection();
-        this._createShortcutSection();
+        this._createWebSearchSection();
         this._createColorSection();
+        this._createShortcutSection();
         this._createSaveSection();
 
         this.ui.add(this.main);
@@ -121,6 +122,9 @@ class SettingsUI {
 
         // Timeout
         this.defaultTimeout = this.schema.get_int(SettingsKeys.REQUEST_TIMEOUT);
+
+        // Web search
+        this.defaultEnableWebSearch = this.schema.get_boolean(SettingsKeys.ENABLE_WEB_SEARCH);
     }
 
     /**
@@ -451,6 +455,41 @@ class SettingsUI {
     }
 
     /**
+     * Create the web search toggle section
+     * @private
+     */
+    _createWebSearchSection() {
+        const labelWebSearch = new Gtk.Label({
+            label:        _("Enable Web Search:"),
+            halign:       Gtk.Align.START,
+            tooltip_text: _("Allow the chatbot to search the web for real-time information using DuckDuckGo."),
+        });
+
+        this.webSearchSwitch = new Gtk.Switch({
+            active: this.defaultEnableWebSearch,
+            valign: Gtk.Align.CENTER,
+        });
+
+        const switchBox = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            halign: Gtk.Align.START,
+        });
+        switchBox.append(this.webSearchSwitch);
+
+        const webSearchInfo = new Gtk.Label({
+            label:        _("Uses realtime data from Web. Works with all LLM providers."),
+            halign:       Gtk.Align.START,
+            wrap:         true,
+            max_width_chars: 50,
+        });
+
+        // Add to grid
+        this.main.attach(labelWebSearch, 0, 11, 1, 1);
+        this.main.attach(switchBox, 2, 11, 1, 1);
+        this.main.attach(webSearchInfo, 3, 11, 2, 1);
+    }
+
+    /**
      * Create the color selection section
      * @private
      */
@@ -485,7 +524,7 @@ class SettingsUI {
             this.defaultHumanColor,
             _("Your Message Background Color:"),
             _("Select the background color for your messages."),
-            11,
+            13,
             (color) => { this.humanColorValue = color; }
         );
 
@@ -494,7 +533,7 @@ class SettingsUI {
             this.defaultHumanTextColor,
             _("Your Message Text Color:"),
             _("Select the text color for your messages."),
-            12,
+            14,
             (color) => { this.humanTextColorValue = color; }
         );
 
@@ -503,7 +542,7 @@ class SettingsUI {
             this.defaultLLMColor,
             _("Chatbot Message Background Color:"),
             _("Select the background color for the chatbot's messages."),
-            13,
+            15,
             (color) => { this.llmColorValue = color; }
         );
 
@@ -512,7 +551,7 @@ class SettingsUI {
             this.defaultLLMTextColor,
             _("Chatbot Message Text Color:"),
             _("Select the text color for the chatbot's messages."),
-            14,
+            16,
             (color) => { this.llmTextColorValue = color; }
         );
     }
@@ -574,9 +613,9 @@ class SettingsUI {
         });
 
         // Add to grid
-        this.main.attach(labelShortcut, 0, 15, 1, 1);
-        this.main.attach(this.shortcutLabel, 2, 15, 1, 1);
-        this.main.attach(this.shortcutButton, 3, 15, 1, 1);
+        this.main.attach(labelShortcut, 0, 17, 1, 1);
+        this.main.attach(this.shortcutLabel, 2, 17, 1, 1);
+        this.main.attach(this.shortcutButton, 3, 17, 1, 1);
     }
 
     /**
@@ -597,8 +636,8 @@ class SettingsUI {
         this.saveButton.connect("clicked", () => this._saveSettings());
 
         // Add to grid
-        this.main.attach(this.saveButton, 2, 16, 1, 1);
-        this.main.attach(this.statusLabel, 0, 17, 4, 1);
+        this.main.attach(this.saveButton, 2, 18, 1, 1);
+        this.main.attach(this.statusLabel, 0, 19, 4, 1);
     }
 
     /**
@@ -643,6 +682,9 @@ class SettingsUI {
 
         // Save timeout
         this.schema.set_int(SettingsKeys.REQUEST_TIMEOUT, this.timeout.get_value());
+
+        // Save web search setting
+        this.schema.set_boolean(SettingsKeys.ENABLE_WEB_SEARCH, this.webSearchSwitch.get_active());
 
         // Show success message
         this.statusLabel.set_label(_("Preferences saved successfully!"));

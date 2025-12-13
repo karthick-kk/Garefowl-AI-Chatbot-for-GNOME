@@ -23,6 +23,7 @@ import { ChatMessageDisplay } from "./lib/chatUI.js";
 import { setupShortcut, removeShortcut, focusInput } from "./lib/utils.js";
 import { MessageRoles, CSS, UI } from "./lib/constants.js";
 import {hideTooltip, showTooltip } from "./lib/tooltip.js";
+import { DuckDuckGoSearchClient } from "./lib/webSearch.js";
 
 /**
  * Main extension class that handles the chat interface
@@ -92,6 +93,7 @@ const Garefowl = GObject.registerClass(
                 can_focus:   true,
                 track_hover: true,
                 style_class: CSS.MESSAGE_INPUT,
+                x_expand:    true,
             });
             this._chatDisplay.setChatInput(this._chatInput);
 
@@ -302,7 +304,8 @@ const Garefowl = GObject.registerClass(
             const apiKey = this._settingsManager.getApiKey(provider);
             const model = this._settingsManager.getModel(provider);
             const timeout = this._settingsManager.getRequestTimeout();
-            const llmProvider = LLMProviderFactory.createProvider(provider, apiKey, model);
+            const enableWebSearch = this._settingsManager.getEnableWebSearch();
+            const llmProvider = LLMProviderFactory.createProvider(provider, apiKey, model, enableWebSearch);
             // Set the configured timeout
             llmProvider.setTimeout(timeout);
             console.log(`[Extension] Created LLM provider: ${llmProvider.constructor.name}`);
@@ -367,22 +370,57 @@ const Garefowl = GObject.registerClass(
                 if (error) {
                     log(`[Extension] Callback error: ${error}`);
                     chatDisplay.displayError(error.toString(), true);
+                    chatInput.set_reactive(true);
+                    chatInput.set_text("");
+                    focusInputBox();
                 } else {
-                    log(`[Extension] Callback response length: ${response ? response.length : 'NULL'}`);
-                    log(`[Extension] Callback response preview: ${response ? response.substring(0, 200) : 'NULL'}`);
-                    if (!response || !response.trim()) {
-                        log(`[Extension] Response is blank or whitespace. Displaying placeholder.`);
-                        chatDisplay.displayMessage('assistant', '[No response or blank output from LLM]');
-                    } else {
-                        chatDisplay.displayMessage('assistant', response);
+                    log(`[Extension] Callback response type: ${typeof response}`);
+                    log(`[Extension] Callback response: ${JSON.stringify(response).substring(0, 200)}`);
+                    
+                    // Check if response contains tool calls
+                    let toolCalls = null;
+                    try {
+                        toolCalls = llmProvider._extractToolCalls(response);
+                        log(`[Extension] Tool calls extracted: ${toolCalls ? JSON.stringify(toolCalls) : 'null'}`);
+                    } catch (e) {
+                        log(`[Extension] Error extracting tool calls: ${e.message}`);
                     }
-                    // Add to history
-                    history.push({ role: 'assistant', content: response });
-                    settingsManager.setHistory(history);
+                    
+                    if (toolCalls && toolCalls.length > 0 && enableWebSearch) {
+                        log(`[Extension] Tool calls detected, handling...`);
+                        this._handleToolCalls(toolCalls, llmProvider, response);
+                    } else {
+                        // Normal text response - extract text from response object
+                        let textResponse = '';
+                        try {
+                            if (typeof response === 'string') {
+                                textResponse = response;
+                            } else if (response && typeof response === 'object') {
+                                textResponse = llmProvider._extractResponseText(response);
+                            }
+                            log(`[Extension] Extracted text response length: ${textResponse ? textResponse.length : 0}`);
+                        } catch (e) {
+                            log(`[Extension] Error extracting text: ${e.message}`);
+                            textResponse = '';
+                        }
+                        
+                        if (!textResponse || !textResponse.trim()) {
+                            log(`[Extension] Response is blank or whitespace.`);
+                            chatDisplay.displayMessage('assistant', '[No response from LLM]');
+                            textResponse = '[No response from LLM]';
+                        } else {
+                            chatDisplay.displayMessage('assistant', textResponse);
+                        }
+                        
+                        // Add to history
+                        history.push({ role: 'assistant', content: textResponse });
+                        settingsManager.setHistory(history);
+                        
+                        chatInput.set_reactive(true);
+                        chatInput.set_text("");
+                        focusInputBox();
+                    }
                 }
-                chatInput.set_reactive(true);
-                chatInput.set_text("");
-                focusInputBox();
             }.bind(this);
             llmProvider.sendRequest(this._history, callback);
             console.log(`[Extension] sendRequest method called, waiting for callback`);
@@ -421,6 +459,63 @@ const Garefowl = GObject.registerClass(
 
             // Start polling every 500ms
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, checkResult);
+        }
+
+        /**
+        * Handle tool calls from LLM (e.g., web search)
+        * @param {Array} toolCalls - Array of tool calls
+        * @param {LLMProvider} llmProvider - The LLM provider instance
+        * @param {object} originalResponse - Original response from LLM
+        * @private
+        */
+        _handleToolCalls(toolCalls, llmProvider, originalResponse) {
+            console.log(`[Extension] Handling ${toolCalls.length} tool calls`);
+            
+            const toolCall = toolCalls[0]; // Handle first tool call
+            
+            if (toolCall.name === 'web_search') {
+                const query = toolCall.input.query;
+                console.log(`[Extension] Performing web search: ${query}`);
+                
+                // Show search indicator
+                this._chatDisplay.displayMessage(MessageRoles.ASSISTANT, `🔍 Searching the web for: "${query}"...`);
+                
+                // Create DuckDuckGo search client
+                const searchClient = new DuckDuckGoSearchClient();
+                
+                // Perform search
+                searchClient.search(query, (error, results) => {
+                    if (error) {
+                        console.error(`[Extension] Search error: ${error}`);
+                        this._chatDisplay.displayError(`Web search failed: ${error.message}`, false);
+                        this._chatInput.set_reactive(true);
+                        this._chatInput.set_text("");
+                        this._focusInputBox();
+                        return;
+                    }
+                    
+                    console.log(`[Extension] Search completed, sending results back to LLM`);
+                    console.log(`[Extension] Search results: ${results.substring(0, 200)}...`);
+                    
+                    // Add tool result to history
+                    this._history.push({
+                        role: MessageRoles.USER,
+                        content: `Web search results for "${query}":\n\n${results}`
+                    });
+                    
+                    // Save updated history
+                    this._settingsManager.setHistory(this._history);
+                    
+                    // Send back to LLM with search results
+                    this._sendToLLM();
+                });
+            } else {
+                console.log(`[Extension] Unknown tool: ${toolCall.name}`);
+                this._chatDisplay.displayError(`Unknown tool requested: ${toolCall.name}`, false);
+                this._chatInput.set_reactive(true);
+                this._chatInput.set_text("");
+                this._focusInputBox();
+            }
         }
 
         /**
