@@ -10,3 +10,10 @@ search:
     - html
     - json
 enabled_plugins: []
+engines:
+  - name: wikidata
+    disabled: true
+  - name: startpage
+    disabled: true
+  - name: duckduckgo
+    timeout: 10.0

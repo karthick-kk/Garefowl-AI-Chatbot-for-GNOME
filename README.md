@@ -89,7 +89,7 @@ You can now use the extension! Open the chat window by clicking the Garefowl ico
 
 # Showcase 📺
 
-![image](https://github.com/user-attachments/assets/a062ef18-c8ae-4188-908f-24bf8b12315e)
+![image](assets/screenshot.png)
 
 ---
 
