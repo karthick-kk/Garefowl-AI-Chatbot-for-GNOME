@@ -25,7 +25,7 @@ export default class GarefowlPreferences extends ExtensionPreferences {
         window._settings = this.getSettings();
         
         // Set window size - increased width to accommodate all content
-        window.set_default_size(1000, 950);
+        window.set_default_size(1000, 1100);
         window.set_search_enabled(false);
         
         const settingsUI = new SettingsUI(window._settings);
@@ -103,6 +103,7 @@ class SettingsUI {
         this.defaultOpenAIKey = this.schema.get_string(SettingsKeys.OPENAI_API_KEY);
         this.defaultGeminiKey = this.schema.get_string(SettingsKeys.GEMINI_API_KEY);
         this.defaultOpenRouterKey = this.schema.get_string(SettingsKeys.OPENROUTER_API_KEY);
+        this.defaultGroqKey = this.schema.get_string(SettingsKeys.GROQ_API_KEY);
 
         // Models
         this.defaultModel = this.schema.get_string(SettingsKeys.ANTHROPIC_MODEL);
@@ -110,6 +111,7 @@ class SettingsUI {
         this.defaultGeminiModel = this.schema.get_string(SettingsKeys.GEMINI_MODEL);
         this.defaultOpenRouterModel = this.schema.get_string(SettingsKeys.OPENROUTER_MODEL);
         this.defaultOllamaModel = this.schema.get_string(SettingsKeys.OLLAMA_MODEL);
+        this.defaultGroqModel = this.schema.get_string(SettingsKeys.GROQ_MODEL);
 
         // Colors
         this.defaultHumanColor = this.schema.get_string(SettingsKeys.HUMAN_MESSAGE_COLOR);
@@ -125,6 +127,7 @@ class SettingsUI {
 
         // Web search
         this.defaultEnableWebSearch = this.schema.get_boolean(SettingsKeys.ENABLE_WEB_SEARCH);
+        this.defaultSearXNGInstance = this.schema.get_string(SettingsKeys.SEARXNG_INSTANCE);
     }
 
     /**
@@ -144,6 +147,7 @@ class SettingsUI {
         providerList.append(_("Gemini"));
         providerList.append(_("OpenRouter"));
         providerList.append(_("Ollama"));
+        providerList.append(_("Groq"));
 
         this.provider = new Gtk.DropDown({
             model:      providerList,
@@ -159,6 +163,7 @@ class SettingsUI {
             LLMProviders.GEMINI,
             LLMProviders.OPENROUTER,
             LLMProviders.OLLAMA,
+            LLMProviders.GROQ,
         ];
 
         for (let i = 0; i < providers.length; i++) {
@@ -284,6 +289,32 @@ class SettingsUI {
         this.main.attach(labelOpenRouterAPI, 0, 4, 1, 1);
         this.main.attach(this.openRouterApiKey, 2, 4, 2, 1);
         this.main.attach(howToOpenRouterAPI, 4, 4, 1, 1);
+
+        // Groq API Key
+        const labelGroqAPI = new Gtk.Label({
+            label:        _("Groq API Key:"),
+            halign:       Gtk.Align.START,
+            tooltip_text: _("Enter your Groq API key here."),
+        });
+
+        this.groqApiKey = new Gtk.Entry({
+            buffer:     new Gtk.EntryBuffer(),
+            visibility: false,
+            hexpand:    true,
+            width_chars: 30,
+        });
+        this.groqApiKey.set_placeholder_text(_("Paste your Groq API key"));
+        this.groqApiKey.set_text(this.defaultGroqKey);
+
+        const howToGroqAPI = new Gtk.LinkButton({
+            label:   _("Get Groq API Key"),
+            uri:     "https://console.groq.com/keys",
+            halign:  Gtk.Align.START,
+        });
+
+        this.main.attach(labelGroqAPI, 0, 5, 1, 1);
+        this.main.attach(this.groqApiKey, 2, 5, 2, 1);
+        this.main.attach(howToGroqAPI, 4, 5, 1, 1);
     }
 
     /**
@@ -397,25 +428,50 @@ class SettingsUI {
         });
 
         // Add to grid
-        this.main.attach(labelModel, 0, 5, 1, 1);
-        this.main.attach(this.model, 2, 5, 2, 1);
-        this.main.attach(howToModel, 4, 5, 1, 1);
+        this.main.attach(labelModel, 0, 6, 1, 1);
+        this.main.attach(this.model, 2, 6, 2, 1);
+        this.main.attach(howToModel, 4, 6, 1, 1);
 
-        this.main.attach(labelOpenAIModel, 0, 6, 1, 1);
-        this.main.attach(this.openaiModel, 2, 6, 2, 1);
-        this.main.attach(howToOpenAIModel, 4, 6, 1, 1);
+        this.main.attach(labelOpenAIModel, 0, 7, 1, 1);
+        this.main.attach(this.openaiModel, 2, 7, 2, 1);
+        this.main.attach(howToOpenAIModel, 4, 7, 1, 1);
 
-        this.main.attach(labelGeminiModel, 0, 7, 1, 1);
-        this.main.attach(this.geminiModel, 2, 7, 2, 1);
-        this.main.attach(howToGeminiModel, 4, 7, 1, 1);
+        this.main.attach(labelGeminiModel, 0, 8, 1, 1);
+        this.main.attach(this.geminiModel, 2, 8, 2, 1);
+        this.main.attach(howToGeminiModel, 4, 8, 1, 1);
 
-        this.main.attach(labelOpenRouterModel, 0, 8, 1, 1);
-        this.main.attach(this.openRouterModel, 2, 8, 2, 1);
-        this.main.attach(howToOpenRouterModel, 4, 8, 1, 1);
+        this.main.attach(labelOpenRouterModel, 0, 9, 1, 1);
+        this.main.attach(this.openRouterModel, 2, 9, 2, 1);
+        this.main.attach(howToOpenRouterModel, 4, 9, 1, 1);
 
-        this.main.attach(labelOllamaModel, 0, 9, 1, 1);
-        this.main.attach(this.ollamaModel, 2, 9, 2, 1);
-        this.main.attach(howToOllamaModel, 4, 9, 1, 1);
+        this.main.attach(labelOllamaModel, 0, 10, 1, 1);
+        this.main.attach(this.ollamaModel, 2, 10, 2, 1);
+        this.main.attach(howToOllamaModel, 4, 10, 1, 1);
+
+        // Groq Model
+        const labelGroqModel = new Gtk.Label({
+            label:        _("Groq Model:"),
+            halign:       Gtk.Align.START,
+            tooltip_text: _("Specify the Groq model you want to use. Example: llama-3.3-70b-versatile"),
+        });
+
+        this.groqModel = new Gtk.Entry({
+            buffer: new Gtk.EntryBuffer(),
+            hexpand: true,
+            width_chars: 30,
+        });
+        this.groqModel.set_placeholder_text(_("e.g., llama-3.3-70b-versatile"));
+        this.groqModel.set_text(this.defaultGroqModel);
+
+        const howToGroqModel = new Gtk.LinkButton({
+            label:   _("Available Groq Models"),
+            uri:     "https://console.groq.com/docs/models",
+            halign:  Gtk.Align.START,
+        });
+
+        this.main.attach(labelGroqModel, 0, 11, 1, 1);
+        this.main.attach(this.groqModel, 2, 11, 2, 1);
+        this.main.attach(howToGroqModel, 4, 11, 1, 1);
     }
 
     /**
@@ -449,9 +505,9 @@ class SettingsUI {
         });
 
         // Add to grid
-        this.main.attach(labelTimeout, 0, 10, 1, 1);
-        this.main.attach(this.timeout, 2, 10, 1, 1);
-        this.main.attach(timeoutInfo, 3, 10, 1, 1);
+        this.main.attach(labelTimeout, 0, 12, 1, 1);
+        this.main.attach(this.timeout, 2, 12, 1, 1);
+        this.main.attach(timeoutInfo, 3, 12, 1, 1);
     }
 
     /**
@@ -462,7 +518,7 @@ class SettingsUI {
         const labelWebSearch = new Gtk.Label({
             label:        _("Enable Web Search:"),
             halign:       Gtk.Align.START,
-            tooltip_text: _("Allow the chatbot to search the web for real-time information using DuckDuckGo."),
+            tooltip_text: _("Allow the chatbot to search the web for real-time information using SearXNG. Requires a working SearXNG instance."),
         });
 
         this.webSearchSwitch = new Gtk.Switch({
@@ -477,16 +533,41 @@ class SettingsUI {
         switchBox.append(this.webSearchSwitch);
 
         const webSearchInfo = new Gtk.Label({
-            label:        _("Uses realtime data from Web. Works with all LLM providers."),
+            label:        _("Uses SearXNG for real-time web data. Works with all LLM providers."),
             halign:       Gtk.Align.START,
             wrap:         true,
             max_width_chars: 50,
         });
 
+        // SearXNG Instance URL
+        const labelSearXNG = new Gtk.Label({
+            label:        _("SearXNG Instance URL:"),
+            halign:       Gtk.Align.START,
+            tooltip_text: _("Enter the URL of a SearXNG instance (public or self-hosted)."),
+        });
+
+        this.searxngInstance = new Gtk.Entry({
+            buffer: new Gtk.EntryBuffer(),
+            hexpand: true,
+            width_chars: 30,
+        });
+        this.searxngInstance.set_placeholder_text(_("e.g., https://paulgo.io"));
+        this.searxngInstance.set_text(this.defaultSearXNGInstance);
+
+        const howToSearXNG = new Gtk.LinkButton({
+            label:   _("Public SearXNG Instances"),
+            uri:     "https://searx.space/",
+            halign:  Gtk.Align.START,
+        });
+
         // Add to grid
-        this.main.attach(labelWebSearch, 0, 11, 1, 1);
-        this.main.attach(switchBox, 2, 11, 1, 1);
-        this.main.attach(webSearchInfo, 3, 11, 2, 1);
+        this.main.attach(labelWebSearch, 0, 13, 1, 1);
+        this.main.attach(switchBox, 2, 13, 1, 1);
+        this.main.attach(webSearchInfo, 3, 13, 2, 1);
+        
+        this.main.attach(labelSearXNG, 0, 14, 1, 1);
+        this.main.attach(this.searxngInstance, 2, 14, 2, 1);
+        this.main.attach(howToSearXNG, 4, 14, 1, 1);
     }
 
     /**
@@ -524,7 +605,7 @@ class SettingsUI {
             this.defaultHumanColor,
             _("Your Message Background Color:"),
             _("Select the background color for your messages."),
-            13,
+            16,
             (color) => { this.humanColorValue = color; }
         );
 
@@ -533,7 +614,7 @@ class SettingsUI {
             this.defaultHumanTextColor,
             _("Your Message Text Color:"),
             _("Select the text color for your messages."),
-            14,
+            17,
             (color) => { this.humanTextColorValue = color; }
         );
 
@@ -542,7 +623,7 @@ class SettingsUI {
             this.defaultLLMColor,
             _("Chatbot Message Background Color:"),
             _("Select the background color for the chatbot's messages."),
-            15,
+            18,
             (color) => { this.llmColorValue = color; }
         );
 
@@ -551,7 +632,7 @@ class SettingsUI {
             this.defaultLLMTextColor,
             _("Chatbot Message Text Color:"),
             _("Select the text color for the chatbot's messages."),
-            16,
+            19,
             (color) => { this.llmTextColorValue = color; }
         );
     }
@@ -613,9 +694,9 @@ class SettingsUI {
         });
 
         // Add to grid
-        this.main.attach(labelShortcut, 0, 17, 1, 1);
-        this.main.attach(this.shortcutLabel, 2, 17, 1, 1);
-        this.main.attach(this.shortcutButton, 3, 17, 1, 1);
+        this.main.attach(labelShortcut, 0, 20, 1, 1);
+        this.main.attach(this.shortcutLabel, 2, 20, 1, 1);
+        this.main.attach(this.shortcutButton, 3, 20, 1, 1);
     }
 
     /**
@@ -636,8 +717,8 @@ class SettingsUI {
         this.saveButton.connect("clicked", () => this._saveSettings());
 
         // Add to grid
-        this.main.attach(this.saveButton, 2, 18, 1, 1);
-        this.main.attach(this.statusLabel, 0, 19, 4, 1);
+        this.main.attach(this.saveButton, 2, 21, 1, 1);
+        this.main.attach(this.statusLabel, 0, 22, 4, 1);
     }
 
     /**
@@ -652,6 +733,7 @@ class SettingsUI {
             LLMProviders.GEMINI,
             LLMProviders.OPENROUTER,
             LLMProviders.OLLAMA,
+            LLMProviders.GROQ,
         ];
         const selectedProvider = providerList[this.provider.get_selected()];
 
@@ -663,6 +745,7 @@ class SettingsUI {
         this.schema.set_string(SettingsKeys.OPENAI_API_KEY, this.openaiApiKey.get_buffer().get_text());
         this.schema.set_string(SettingsKeys.GEMINI_API_KEY, this.geminiApiKey.get_buffer().get_text());
         this.schema.set_string(SettingsKeys.OPENROUTER_API_KEY, this.openRouterApiKey.get_buffer().get_text());
+        this.schema.set_string(SettingsKeys.GROQ_API_KEY, this.groqApiKey.get_buffer().get_text());
 
         // Save models
         this.schema.set_string(SettingsKeys.ANTHROPIC_MODEL, this.model.get_buffer().get_text());
@@ -670,6 +753,7 @@ class SettingsUI {
         this.schema.set_string(SettingsKeys.GEMINI_MODEL, this.geminiModel.get_buffer().get_text());
         this.schema.set_string(SettingsKeys.OPENROUTER_MODEL, this.openRouterModel.get_buffer().get_text());
         this.schema.set_string(SettingsKeys.OLLAMA_MODEL, this.ollamaModel.get_buffer().get_text());
+        this.schema.set_string(SettingsKeys.GROQ_MODEL, this.groqModel.get_buffer().get_text());
 
         // Save colors
         this.schema.set_string(SettingsKeys.HUMAN_MESSAGE_COLOR, this.humanColorValue || this.defaultHumanColor);
@@ -683,8 +767,9 @@ class SettingsUI {
         // Save timeout
         this.schema.set_int(SettingsKeys.REQUEST_TIMEOUT, this.timeout.get_value());
 
-        // Save web search setting
+        // Save web search settings
         this.schema.set_boolean(SettingsKeys.ENABLE_WEB_SEARCH, this.webSearchSwitch.get_active());
+        this.schema.set_string(SettingsKeys.SEARXNG_INSTANCE, this.searxngInstance.get_buffer().get_text());
 
         // Show success message
         this.statusLabel.set_label(_("Preferences saved successfully!"));

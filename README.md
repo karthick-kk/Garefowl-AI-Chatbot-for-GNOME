@@ -1,7 +1,7 @@
 ---
 # Garefowl: AI Chatbot 🐧
 
-An assistant interface for GNOME powered by LLM APIs. Supports OpenRouter, Anthropic, OpenAI, Gemini, and Ollama.
+An assistant interface for GNOME powered by LLM APIs. Supports OpenRouter, Anthropic, OpenAI, Gemini, Groq and Ollama.
 
 
 # Download & Installation
@@ -44,9 +44,24 @@ This extension now supports multiple LLM providers.  You will need to obtain an 
 
 ## Web Search (Optional)
 
-For real-time web search functionality:
+For real-time web search functionality, this extension uses **SearXNG**:
 
-*   **DuckDuckGo:** No API key required, completely free, works out of the box
+*   **Public Instances:** Use free public instances (default: `https://paulgo.io`) - no setup required
+*   **Self-Hosted (Recommended):** Deploy your own local instance for better reliability
+
+### Quick Self-Hosted Setup
+
+For best performance, deploy a local SearXNG instance using the included Docker setup:
+
+```bash
+cd searxng/
+sed -i "s/change-this-secret-key-to-a-random-string/$(openssl rand -hex 32)/" settings.yml
+docker-compose up -d
+```
+
+Then in extension settings, set SearXNG Instance URL to `http://localhost:8080`
+
+See `searxng/README.md` for detailed instructions.
 
 Once you have your API key(s):
 
@@ -55,7 +70,7 @@ Once you have your API key(s):
 3.  Select your preferred LLM provider.
 4.  Paste your API key into the corresponding field.
 5.  Choose your desired model (refer to the provider's documentation for available models).
-6.  (Optional) Enable "Web Search" toggle for real-time information (uses DuckDuckGo, no API key needed)
+6.  (Optional) Enable "Web Search" toggle and configure SearXNG instance URL (default uses public instance)
 7.  (Optional) Customize the colors for your messages and the chatbot's messages.
 8.  (Optional) Set a keyboard shortcut to quickly open the chat window.
 9.  Click Save.
@@ -66,11 +81,12 @@ You can now use the extension! Open the chat window by clicking the Garefowl ico
 
 *   **Multiple LLM Providers:** Choose between Anthropic, OpenAI, Gemini, OpenRouter, and Ollama.
 *   **Customizable Models:** Select different models for each provider.
-*   **Web Search:** Enable real-time web search using Brave Search API for up-to-date information.
+*   **Web Search:** Enable real-time web search using SearXNG (supports public instances or self-hosted).
 *   **Chat History:** Remembers your conversation history.
 *   **Customizable Appearance:** Change the background and text colors for messages.
 *   **Keyboard Shortcut:** Quickly open the chat window with a customizable shortcut.
 *   **Copy to Clipboard:** Click on any message to copy it to your clipboard.
+*   **Youtube AI Summarizer:** Supports most videos with captions/subtitles or transcription enabled (requires [yt-dlp](https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp) installed)
 
 # Showcase 📺
 

@@ -20,10 +20,12 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import { SettingsManager } from "./lib/settings.js";
 import { LLMProviderFactory } from "./lib/llmProviders.js";
 import { ChatMessageDisplay } from "./lib/chatUI.js";
+import { ChatWindow } from "./lib/chatWindow.js";
 import { setupShortcut, removeShortcut, focusInput } from "./lib/utils.js";
 import { MessageRoles, CSS, UI } from "./lib/constants.js";
 import {hideTooltip, showTooltip } from "./lib/tooltip.js";
-import { DuckDuckGoSearchClient } from "./lib/webSearch.js";
+import { SearXNGSearchClient } from "./lib/webSearch.js";
+import { YouTubeTranscriptFetcher } from "./lib/youtubeSummary.js";
 
 /**
  * Main extension class that handles the chat interface
@@ -34,13 +36,14 @@ const Garefowl = GObject.registerClass(
         * Initialize the Garefowl chat interface
         * @param {object} params - Initialization parameters
         */
-        _init(extension) {
+        _init(extensionObj) {
             super._init(0.0, _("Garefowl: AI Chatbot"));
 
-            this._extension = extension;
-            this._settingsManager = new SettingsManager(this._extension.settings);
-            this._clipboard = this._extension.clipboard;
-            this._openSettingsCallback = this._extension.openSettings;
+            this._extensionObj = extensionObj;
+            this._settingsManager = new SettingsManager(extensionObj.settings);
+            this._clipboard = extensionObj.clipboard;
+            this._openSettingsCallback = extensionObj.openSettings;
+            this._extensionInstance = extensionObj.extensionInstance;
 
             // Load settings
             this._loadSettings();
@@ -58,6 +61,13 @@ const Garefowl = GObject.registerClass(
             // Initialize history
             this._history = [];
             this._loadHistory();
+
+            // Track tool call depth to prevent infinite loops
+            this._toolCallDepth = 0;
+            this._maxToolCallDepth = 3;
+
+            // Initialize GTK window (lazy)
+            this._chatWindow = null;
         }
 
         /**
@@ -83,7 +93,8 @@ const Garefowl = GObject.registerClass(
             this._chatDisplay = new ChatMessageDisplay(
                 this._chatBox,
                 styleSettings,
-                () => this._openSettings()
+                () => this._openSettings(),
+                () => this._expandToWindow()
             );
             this._chatDisplay.setClipboard(this._clipboard);
 
@@ -114,6 +125,23 @@ const Garefowl = GObject.registerClass(
             this._newConversationButton.connect("enter-event", () => this._handleNewConversationEnter());
             this._newConversationButton.connect("leave-event", () => this._handleNewConversationLeave());
 
+            // Create expand button
+            this._expandButton = new St.Button({
+                style: "width: 16px; height:16px; margin-right: 10px;",
+                child: new St.Icon({
+                    icon_name: "view-fullscreen-symbolic",
+                    style:     "width: 30px; height:30px",
+                }),
+            });
+
+            this._expandButton.connect("clicked", () => this._expandToWindow());
+            this._expandButton.connect("enter-event", () => {
+                showTooltip('Open Chat Window');
+            });
+            this._expandButton.connect("leave-event", () => {
+                hideTooltip();
+            });
+
             // Create preferences button
             this._preferencesButton = new St.Button({
                 style: "width: 16px; height:16px; margin-right: 15px;",
@@ -139,6 +167,7 @@ const Garefowl = GObject.registerClass(
             });
             entryBox.add_child(this._chatInput);
             entryBox.add_child(this._newConversationButton);
+            entryBox.add_child(this._expandButton);
             entryBox.add_child(this._preferencesButton);
 
             // Create scrollable chat view
@@ -205,6 +234,9 @@ const Garefowl = GObject.registerClass(
                 role:    MessageRoles.USER,
                 content: input,
             });
+
+            // Reset tool call depth for new user input
+            this._toolCallDepth = 0;
 
             // Send to LLM
             this._sendToLLM();
@@ -310,155 +342,81 @@ const Garefowl = GObject.registerClass(
             llmProvider.setTimeout(timeout);
             console.log(`[Extension] Created LLM provider: ${llmProvider.constructor.name}`);
 
-            // Create a global test function to see if the issue is with callback context
-            global.testCallbackFunction = (error, response) => {
-                console.log("GLOBAL TEST CALLBACK REACHED!!!");
-                log("GLOBAL TEST CALLBACK REACHED!!!");
-                console.log(`Global callback - error: ${error}, response: ${response ? response.substring(0, 50) : 'NULL'}`);
-            };
-
-            // Store references for the callback
-            const chatDisplay = this._chatDisplay;
-            const chatInput = this._chatInput;
-            const history = this._history;
-            const settingsManager = this._settingsManager;
-            const focusInputBox = this._focusInputBox.bind(this);
-
-            // Test if simple callbacks work at all
-            const testCallback = function(error, response) {
-                console.log("=== TEST CALLBACK EXECUTED ===");
-                log("=== TEST CALLBACK EXECUTED ===");
-            };
-            
-            // Test the callback directly
-            try {
-                console.log("Testing callback directly...");
-                testCallback(null, "test");
-                console.log("Direct callback test successful");
-            } catch (e) {
-                console.log(`Direct callback test failed: ${e}`);
-            }
-
-            // Store result globally for polling-based approach
-            global.llmResult = null;
-            global.llmError = null;
-            global.llmPending = true;
-
-            // Extremely simple callback that just stores the result
-            const simpleCallback = function(error, response) {
-                console.log("=== SIMPLE CALLBACK START ===");
-                log("=== SIMPLE CALLBACK START ===");
-                try {
-                    global.llmError = error;
-                    global.llmResult = response;
-                    global.llmPending = false;
-                    console.log(`Stored result: error=${!!error}, response length=${response ? response.length : 0}`);
-                } catch (e) {
-                    console.log(`Error in simple callback: ${e.message}`);
-                }
-                console.log("=== SIMPLE CALLBACK END ===");
-            };
-
-            // Robust callback with logging and blank response fallback
-            const callback = function(error, response) {
+            // Callback to handle LLM response
+            const callback = (error, response) => {
                 console.log("[Extension] Callback entered");
-                log(`[Extension] Callback entered`);
                 
                 // Stop thinking timer
                 this._stopThinkingTimer();
                 
                 if (error) {
-                    log(`[Extension] Callback error: ${error}`);
-                    chatDisplay.displayError(error.toString(), true);
-                    chatInput.set_reactive(true);
-                    chatInput.set_text("");
-                    focusInputBox();
-                } else {
-                    log(`[Extension] Callback response type: ${typeof response}`);
-                    log(`[Extension] Callback response: ${JSON.stringify(response).substring(0, 200)}`);
-                    
-                    // Check if response contains tool calls
-                    let toolCalls = null;
-                    try {
-                        toolCalls = llmProvider._extractToolCalls(response);
-                        log(`[Extension] Tool calls extracted: ${toolCalls ? JSON.stringify(toolCalls) : 'null'}`);
-                    } catch (e) {
-                        log(`[Extension] Error extracting tool calls: ${e.message}`);
-                    }
-                    
-                    if (toolCalls && toolCalls.length > 0 && enableWebSearch) {
-                        log(`[Extension] Tool calls detected, handling...`);
-                        this._handleToolCalls(toolCalls, llmProvider, response);
-                    } else {
-                        // Normal text response - extract text from response object
-                        let textResponse = '';
-                        try {
-                            if (typeof response === 'string') {
-                                textResponse = response;
-                            } else if (response && typeof response === 'object') {
-                                textResponse = llmProvider._extractResponseText(response);
-                            }
-                            log(`[Extension] Extracted text response length: ${textResponse ? textResponse.length : 0}`);
-                        } catch (e) {
-                            log(`[Extension] Error extracting text: ${e.message}`);
-                            textResponse = '';
-                        }
-                        
-                        if (!textResponse || !textResponse.trim()) {
-                            log(`[Extension] Response is blank or whitespace.`);
-                            chatDisplay.displayMessage('assistant', '[No response from LLM]');
-                            textResponse = '[No response from LLM]';
-                        } else {
-                            chatDisplay.displayMessage('assistant', textResponse);
-                        }
-                        
-                        // Add to history
-                        history.push({ role: 'assistant', content: textResponse });
-                        settingsManager.setHistory(history);
-                        
-                        chatInput.set_reactive(true);
-                        chatInput.set_text("");
-                        focusInputBox();
-                    }
-                }
-            }.bind(this);
-            llmProvider.sendRequest(this._history, callback);
-            console.log(`[Extension] sendRequest method called, waiting for callback`);
-
-            // Poll for result using GLib timeout
-            const checkResult = () => {
-                console.log("Checking for LLM result...");
-                if (!global.llmPending) {
-                    console.log("Result received! Processing...");
-                    if (global.llmError) {
-                        console.log(`Processing error: ${global.llmError}`);
-                        this._chatDisplay.displayError(global.llmError.toString(), true);
-                    } else {
-                        console.log(`Processing response: ${global.llmResult ? global.llmResult.length : 0} chars`);
-                        this._chatDisplay.displayMessage(MessageRoles.ASSISTANT, global.llmResult);
-                        
-                        // Add to history
-                        this._history.push({
-                            role: MessageRoles.ASSISTANT,
-                            content: global.llmResult,
-                        });
-                        this._settingsManager.setHistory(this._history);
-                    }
-
-                    // Stop thinking timer and re-enable input
-                    this._stopThinkingTimer();
+                    console.error(`[Extension] Error: ${error}`);
+                    this._chatDisplay.displayError(error.toString(), true);
                     this._chatInput.set_reactive(true);
                     this._chatInput.set_text("");
                     this._focusInputBox();
-                    
-                    return GLib.SOURCE_REMOVE;
-                } else {
-                    return GLib.SOURCE_CONTINUE;
+                    return;
                 }
+                
+                console.log(`[Extension] Response received, type: ${typeof response}`);
+                console.log(`[Extension] Tool call depth: ${this._toolCallDepth}`);
+                
+                // Check if response contains tool calls FIRST (but only if we haven't already done a search)
+                let toolCalls = null;
+                try {
+                    toolCalls = llmProvider._extractToolCalls(response);
+                    console.log(`[Extension] Tool calls extracted: ${toolCalls ? JSON.stringify(toolCalls) : 'none'}`);
+                } catch (e) {
+                    console.error(`[Extension] Error extracting tool calls: ${e.message}`);
+                }
+                
+                // Only handle tool calls if web search is enabled AND we haven't exceeded depth
+                if (toolCalls && toolCalls.length > 0 && enableWebSearch && this._toolCallDepth < this._maxToolCallDepth) {
+                    console.log(`[Extension] Web search enabled, handling ${toolCalls.length} tool calls...`);
+                    this._handleToolCalls(toolCalls, llmProvider, response);
+                    return; // Don't process as text response
+                }
+                
+                // If we got tool calls but can't handle them, log it
+                if (toolCalls && toolCalls.length > 0) {
+                    console.log(`[Extension] Ignoring tool calls (depth: ${this._toolCallDepth}, enabled: ${enableWebSearch})`);
+                }
+                
+                // Normal text response - only if no tool calls
+                console.log(`[Extension] Processing as text response`);
+                let textResponse = '';
+                try {
+                    if (typeof response === 'string') {
+                        textResponse = response;
+                        console.log(`[Extension] Response is string, length: ${textResponse.length}`);
+                    } else if (response && typeof response === 'object') {
+                        console.log(`[Extension] Response is object, extracting text...`);
+                        textResponse = llmProvider._extractResponseText(response);
+                        console.log(`[Extension] Extracted text length: ${textResponse ? textResponse.length : 0}`);
+                    }
+                } catch (e) {
+                    console.error(`[Extension] Error extracting text: ${e.message}`);
+                    console.error(`[Extension] Response object: ${JSON.stringify(response).substring(0, 500)}`);
+                }
+                
+                if (!textResponse || !textResponse.trim()) {
+                    console.error(`[Extension] Empty response! Full response: ${JSON.stringify(response).substring(0, 1000)}`);
+                    textResponse = '[No response from LLM - this may be a parsing error]';
+                }
+                
+                this._chatDisplay.displayMessage(MessageRoles.ASSISTANT, textResponse);
+                
+                // Add to history
+                this._history.push({ role: MessageRoles.ASSISTANT, content: textResponse });
+                this._settingsManager.setHistory(this._history);
+                
+                this._chatInput.set_reactive(true);
+                this._chatInput.set_text("");
+                this._focusInputBox();
             };
-
-            // Start polling every 500ms
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, checkResult);
+            
+            llmProvider.sendRequest(this._history, callback);
+            console.log(`[Extension] Request sent, waiting for response...`);
         }
 
         /**
@@ -469,49 +427,99 @@ const Garefowl = GObject.registerClass(
         * @private
         */
         _handleToolCalls(toolCalls, llmProvider, originalResponse) {
-            console.log(`[Extension] Handling ${toolCalls.length} tool calls`);
+            console.log(`[Extension] Handling ${toolCalls.length} tool calls (depth: ${this._toolCallDepth})`);
             
-            const toolCall = toolCalls[0]; // Handle first tool call
+            if (this._toolCallDepth >= this._maxToolCallDepth) {
+                console.error(`[Extension] Max tool call depth (${this._maxToolCallDepth}) exceeded`);
+                this._chatDisplay.displayError(`Web search limit reached. Please try rephrasing your question.`, false);
+                this._stopThinkingTimer();
+                this._chatInput.set_reactive(true);
+                this._chatInput.set_text("");
+                this._focusInputBox();
+                return;
+            }
+            
+            this._toolCallDepth++;
+            const toolCall = toolCalls[0];
             
             if (toolCall.name === 'web_search') {
                 const query = toolCall.input.query;
                 console.log(`[Extension] Performing web search: ${query}`);
                 
-                // Show search indicator
                 this._chatDisplay.displayMessage(MessageRoles.ASSISTANT, `🔍 Searching the web for: "${query}"...`);
                 
-                // Create DuckDuckGo search client
-                const searchClient = new DuckDuckGoSearchClient();
+                const searxngInstance = this._settingsManager.getSearXNGInstance();
+                const searchClient = new SearXNGSearchClient(searxngInstance);
                 
-                // Perform search
                 searchClient.search(query, (error, results) => {
                     if (error) {
                         console.error(`[Extension] Search error: ${error}`);
                         this._chatDisplay.displayError(`Web search failed: ${error.message}`, false);
+                        this._stopThinkingTimer();
+                        this._toolCallDepth = 0;
                         this._chatInput.set_reactive(true);
                         this._chatInput.set_text("");
                         this._focusInputBox();
                         return;
                     }
                     
-                    console.log(`[Extension] Search completed, sending results back to LLM`);
+                    console.log(`[Extension] Search completed, got results`);
                     console.log(`[Extension] Search results: ${results.substring(0, 200)}...`);
                     
-                    // Add tool result to history
-                    this._history.push({
-                        role: MessageRoles.USER,
-                        content: `Web search results for "${query}":\n\n${results}`
+                    const currentDate = new Date().toLocaleString('en-US', { 
+                        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
+                        hour: '2-digit', minute: '2-digit', timeZoneName: 'short' 
                     });
                     
-                    // Save updated history
+                    // Add search results as a new user message with clear instructions
+                    this._history.push({
+                        role: MessageRoles.USER,
+                        content: `[WEB SEARCH RESULTS - Current time: ${currentDate}]\n\n${results}\n\n[END SEARCH RESULTS]\n\nUsing ONLY the search results above (which are current as of ${currentDate}), please answer the original question. Do not use your training data. If the search results don't contain the answer, say so.`
+                    });
+                    
                     this._settingsManager.setHistory(this._history);
                     
-                    // Send back to LLM with search results
+                    // Send to LLM again with search results
+                    this._sendToLLM();
+                });
+            } else if (toolCall.name === 'youtube_summary') {
+                const videoUrl = toolCall.input.video_url;
+                console.log(`[Extension] Fetching YouTube transcript: ${videoUrl}`);
+                
+                this._chatDisplay.displayMessage(MessageRoles.ASSISTANT, `📺 Fetching YouTube video transcript...`);
+                
+                YouTubeTranscriptFetcher.fetchTranscript(videoUrl, (error, transcript) => {
+                    if (error) {
+                        console.error(`[Extension] YouTube fetch error: ${error}`);
+                        this._chatDisplay.displayError(`YouTube transcript fetch failed: ${error.message}`, false);
+                        this._stopThinkingTimer();
+                        this._toolCallDepth = 0;
+                        this._chatInput.set_reactive(true);
+                        this._chatInput.set_text("");
+                        this._focusInputBox();
+                        return;
+                    }
+                    
+                    console.log(`[Extension] Transcript fetched, length: ${transcript.length}`);
+                    
+                    const formatted = YouTubeTranscriptFetcher.formatTranscript(videoUrl, transcript);
+                    
+                    // Add transcript as a new user message
+                    this._history.push({
+                        role: MessageRoles.USER,
+                        content: formatted
+                    });
+                    
+                    this._settingsManager.setHistory(this._history);
+                    
+                    // Send to LLM again with transcript
                     this._sendToLLM();
                 });
             } else {
                 console.log(`[Extension] Unknown tool: ${toolCall.name}`);
                 this._chatDisplay.displayError(`Unknown tool requested: ${toolCall.name}`, false);
+                this._stopThinkingTimer();
+                this._toolCallDepth = 0;
                 this._chatInput.set_reactive(true);
                 this._chatInput.set_text("");
                 this._focusInputBox();
@@ -524,7 +532,7 @@ const Garefowl = GObject.registerClass(
         */
         _bindShortcut() {
             const shortcut = this._settingsManager.getOpenChatShortcut();
-            setupShortcut(shortcut, this._extension.settings, this._toggleChatWindow.bind(this));
+            setupShortcut(shortcut, this._extensionObj.settings, this._toggleChatWindow.bind(this));
         }
 
         /**
@@ -561,6 +569,21 @@ const Garefowl = GObject.registerClass(
         }
 
         /**
+        * Expand chat to GTK window for selection
+        * @private
+        */
+        _expandToWindow() {
+            log('[Garefowl] Expand button clicked');
+            log(`[Garefowl] History length: ${this._history.length}`);
+            
+            const chatWindow = new ChatWindow(
+                this._extensionInstance,
+                this._history
+            );
+            chatWindow.show();
+        }
+
+        /**
         * Open extension settings
         * @private
         */
@@ -590,6 +613,8 @@ const Garefowl = GObject.registerClass(
                 this._timeoutFocusInputBox = null;
             }
 
+
+
             this._unbindShortcut();
             this._settingsManager.disconnectAll();
             this._chatDisplay.destroy();
@@ -609,6 +634,7 @@ export default class GarefowlExtension extends Extension {
             openSettings: () => this.openPreferences(),
             clipboard:    St.Clipboard.get_default(),
             uuid:         this.uuid,
+            extensionInstance: this,
         });
 
         Main.panel.addToStatusArea(this.uuid, this._garefowl);

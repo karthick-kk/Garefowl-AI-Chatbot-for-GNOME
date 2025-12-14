@@ -1,0 +1,12 @@
+use_default_settings: true
+server:
+  secret_key: "change-this-secret-key-to-a-random-string"
+  limiter: false
+  image_proxy: true
+redis:
+  url: redis://garefowl-redis:6379/0
+search:
+  formats:
+    - html
+    - json
+enabled_plugins: []

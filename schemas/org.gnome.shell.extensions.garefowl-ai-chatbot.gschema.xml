@@ -5,7 +5,7 @@
 
 
     <key name="llm-provider" type="s">
-        <default>'anthropic'</default>
+        <default>'ollama'</default>
         <summary>LLM provider</summary>
     </key>
 
@@ -31,10 +31,20 @@
         <summary>Open Router API Key</summary>
         <description>Your Open Router API key. Required to use Open Router models.</description>
     </key>
+    <key name="groq-api-key" type="s">
+        <default>''</default>
+        <summary>Groq API Key</summary>
+        <description>Your Groq API key. Required to use Groq models.</description>
+    </key>
     <key name="enable-web-search" type="b">
         <default>true</default>
         <summary>Enable Web Search</summary>
-        <description>Allow the chatbot to search the web for real-time information using DuckDuckGo.</description>
+        <description>Allow the chatbot to search the web for real-time information using SearXNG.</description>
+    </key>
+    <key name="searxng-instance" type="s">
+        <default>'http://localhost:8080'</default>
+        <summary>SearXNG Instance URL</summary>
+        <description>The SearXNG instance URL to use for web searches. Can be a public instance or your self-hosted instance. Try: paulgo.io, searx.work, or your own instance.</description>
     </key>
 
 
@@ -50,7 +60,7 @@
         <description>The OpenAI model to use for chat.</description>
     </key>
     <key name="openrouter-model" type="s">
-        <default>'meta-llama/llama-3.3-70b-instruct:free'</default>
+        <default>'openai/gpt-oss-20b:free'</default>
         <summary>OpenRouter model</summary>
         <description>The OpenRouter model to use for chat.</description>
     </key>
@@ -60,12 +70,17 @@
         <description>The Gemini model to use for chat.</description>
     </key>
     <key name="ollama-model" type="s">
-        <default>''</default>
+        <default>'ministral-3:8b'</default>
         <summary>Ollama model name</summary>
+    </key>
+    <key name="groq-model" type="s">
+        <default>'llama-3.3-70b-versatile'</default>
+        <summary>Groq Model</summary>
+        <description>The Groq model to use for chat.</description>
     </key>
 
     <key name="request-timeout" type="i">
-        <default>300</default>
+        <default>180</default>
         <summary>Request timeout in seconds</summary>
         <description>Timeout for LLM API requests in seconds. Increase for slower models or reasoning models that take longer to respond.</description>
     </key>
@@ -81,7 +96,7 @@
 
 
     <key name="human-message-color" type="s">
-        <default>'rgb(0, 106, 255)'</default>
+        <default>'rgb(192,28,40)'</default>
         <summary>Your Message Background Color</summary>
         <description>The background color for your messages.</description>
     </key>
@@ -101,7 +116,7 @@
         <description>The text color for your messages.</description>
     </key>
     <key name="open-chat-shortcut" type="as">
-      <default><![CDATA[['<Super>l']]]></default>
+      <default><![CDATA[['<Super>c']]]></default>
       <summary>Shortcut to open the chat window</summary>
       <description>
         Keyboard shortcut to open the chat window.
