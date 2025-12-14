@@ -1,6 +1,6 @@
 # Makefile for Penguin AI Chatbot GNOME Shell Extension
 
-EXTENSION_UUID = penguin-ai-chatbot-revived@coffeecionado.gitlab.io
+EXTENSION_UUID = garefowl-ai-chatbot@karthickk.gitlab.com
 EXTENSION_DIR = $(HOME)/.local/share/gnome-shell/extensions/$(EXTENSION_UUID)
 
 .PHONY: install enable disable package clean

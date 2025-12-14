@@ -1,4 +1,3 @@
----
 # Garefowl: AI Chatbot 🐧
 
 An assistant interface for GNOME powered by LLM APIs. Supports OpenRouter, Anthropic, OpenAI, Gemini, Groq and Ollama.
@@ -46,8 +45,8 @@ This extension now supports multiple LLM providers.  You will need to obtain an 
 
 For real-time web search functionality, this extension uses **SearXNG**:
 
-*   **Public Instances:** Use free public instances (default: `https://paulgo.io`) - no setup required
-*   **Self-Hosted (Recommended):** Deploy your own local instance for better reliability
+*   **Self-Hosted (Default):** Deploy your own local instance for better reliability (default: `http://localhost:8080`)
+*   **Public Instances:** Use free public instances as alternative - no setup required
 
 ### Quick Self-Hosted Setup
 
@@ -70,12 +69,12 @@ Once you have your API key(s):
 3.  Select your preferred LLM provider.
 4.  Paste your API key into the corresponding field.
 5.  Choose your desired model (refer to the provider's documentation for available models).
-6.  (Optional) Enable "Web Search" toggle and configure SearXNG instance URL (default uses public instance)
+6.  (Optional) Enable "Web Search" toggle and configure SearXNG instance URL (default uses local instance)
 7.  (Optional) Customize the colors for your messages and the chatbot's messages.
 8.  (Optional) Set a keyboard shortcut to quickly open the chat window.
 9.  Click Save.
 
-You can now use the extension! Open the chat window by clicking the Garefowl icon in the top panel or by using the keyboard shortcut (default: Super+L).
+You can now use the extension! Open the chat window by clicking the Garefowl icon in the top panel or by using the keyboard shortcut (default: Super+C).
 
 # Features
 
